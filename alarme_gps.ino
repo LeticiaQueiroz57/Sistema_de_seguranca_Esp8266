@@ -2,6 +2,7 @@
 #include <ESP8266WebServer.h>
 #include <GeoLinker.h>
 #include <SoftwareSerial.h>
+#include <ThingSpeak.h>
 
 
 // GPS (SoftwareSerial) 
@@ -18,6 +19,10 @@ SoftwareSerial gpsSerial(GPS_RX_PIN, GPS_TX_PIN);
 const int PINO_SENSOR_PIR = D5;       
 const int PINO_FIM_CURSO = D6;       
 const int PINO_BOTAO_RESET = D3; // Cuidado: D3 é o pino Flash (GPIO0). Não aperte durante o boot.
+
+// Thingspeak 
+const char api_key = "HJQHF9V8BDU293LC";
+unsigned long ChannelNumber = 3187507;
 
 // CONFIGURAÇÃO GEOLINKER
 const char* ssid = "yourSSID";             
@@ -197,6 +202,10 @@ void loop() {
  
       delay(100);
   }
+
+  // Thingspeak
+  ThingSpeak.writeField(ChannelNumber, 1, alerta_pir, api_key);
+  ThingSpeak.writeField(ChannelNumber, 2, alerta_fim_curso, api_key);
 }
 
 // Exibição da página Web
