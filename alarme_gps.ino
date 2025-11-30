@@ -1,24 +1,25 @@
+//#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <GeoLinker.h>
 #include <SoftwareSerial.h>
 
-// ==================================================================
-//                    CONFIGURAÇÃO DE HARDWARE
-// ==================================================================
 
-// --- GPS (SoftwareSerial) ---
+// GPS (SoftwareSerial) 
 #define GPS_RX_PIN D1  
 #define GPS_TX_PIN D2  
 #define GPS_BAUD 9600
 SoftwareSerial gpsSerial(GPS_RX_PIN, GPS_TX_PIN); 
 
-// --- SENSORES ---
+// Motor
+#define motor1 D7
+#define motor2 D8 
+
+// SENSORES
 const int PINO_SENSOR_PIR = D5;       
 const int PINO_FIM_CURSO = D6;       
 const int PINO_BOTAO_RESET = D3; // Cuidado: D3 é o pino Flash (GPIO0). Não aperte durante o boot.
 
-// ==================================================================
-//                    CONFIGURAÇÃO GEOLINKER
-// ==================================================================
+// CONFIGURAÇÃO GEOLINKER
 const char* ssid = "yourSSID";             
 const char* password = "yourPassword";     
 const char* apiKey = "G999FeV5Kn5V";       
@@ -34,9 +35,7 @@ const int8_t timeOffsetMinutes = 0;
 
 GeoLinker geo; 
 
-// ==================================================================
-//                    VARIÁVEIS DE ESTADO
-// ==================================================================
+//  VARIÁVEIS DE ESTADO
 volatile bool alerta_pir = false;
 volatile bool alerta_fim_curso = false;
 volatile bool sistema_em_alerta = false;
@@ -45,10 +44,7 @@ bool tracking_ativo = false; // Controla se o GPS deve enviar dados ou não
 
 int estado_botao_anterior = HIGH; 
 
-// ==================================================================
-//                    INTERRUPÇÕES (ISR)
-// ==================================================================
-
+// INTERRUPÇÕES (ISR)
 void IRAM_ATTR leituraPIR() {
   if (!reset_pendente) {
     alerta_pir = digitalRead(PINO_SENSOR_PIR);
@@ -104,14 +100,22 @@ void setup() {
   } else {
     Serial.println("WiFi não conectado (será tentado novamente se houver roubo).");
   }
+
+  // Servidor
+  server.on("/", handleRoot);
+  server.on("/ligar", ligarMotor);
+  server.on("/desligar", desligarMotor);
+  server.on("/voltar", voltar);
+
+  server.begin();
+  Serial.println("Servidor iniciado");
 }
 
-// ==================================================================
-//                    LOOP PRINCIPAL
-// ==================================================================
 
 void loop() {
-  
+  // Servidor em execução
+  server.handleClient();
+
   // --- 1. VERIFICA BOTÃO RESET ---
   int estado_botao_atual = digitalRead(PINO_BOTAO_RESET);
 
@@ -193,4 +197,62 @@ void loop() {
  
       delay(100);
   }
+}
+
+// Exibição da página Web
+void handleRoot() {
+  String html = R"rawliteral(
+    <!DOCTYPE html>
+    <html lang="pt-br">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, inicial-scale=1.0">
+      <title> Motor do Carro</title>
+      <style>
+        body {font-family: Arial, sans-serif; text-align: center; margin-top: 50px;}
+        button {padding: 15px 25px; font-size: 20px; margin: 10px; cursor: pointer;}
+      </style>
+    </head>
+    <body>
+      <h1> Controle do Motor DC</h1>
+      <button onclick="ligar()">Ligar Motor (Horário)</button>
+      <button onclick="desligar()">Desligar Motor</button>
+      <button onclick="voltar()">Ligar Motor (Anti-Horário)</button>
+
+      <script>
+        function ligar() {
+          fetch('/ligar()');
+        }
+        function desligar() {
+          fetch('/desligar()');
+        }
+        function voltar() {
+          fetch('/voltar()');
+        }
+      </script>
+    </body>
+    </html>
+  )rawliteral";
+}
+
+// Funções para ligar e desligar o motor
+void ligarMotor() {
+  motorLigado = true;
+  digitalWrite(motor1, HIGH);
+  digitalWrite(motor2, LOW);
+  server.send(200, "text/plain", "Motor ligado! (Sentido Horário)");
+}
+
+void desligarMotor() {
+  motorLigado = false;
+  digitalWrite(motor1, LOW);
+  digitalWrite(motor2, LOW);
+  server.send(200, "text/plain", "Motor desligado!");
+}
+
+void voltar() {
+    motorLigado = false;
+  digitalWrite(motor1, LOW);
+  digitalWrite(motor2, HIGH);
+  server.send(200, "text/plain", "Motor ligado! (Sentido Anti-Horário)");
 }
